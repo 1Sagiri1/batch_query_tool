@@ -4,3 +4,4 @@ tqdm
 openpyxl
 pyodbc
 pymysql
+pywebview

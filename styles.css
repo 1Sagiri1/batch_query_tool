@@ -36,6 +36,28 @@ body {
   font-size: 30px;
 }
 
+.app-health {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.app-health.ok {
+  border-color: #a6dbb2;
+  background: #edf9f0;
+  color: #1f6a31;
+}
+
+.app-health.err {
+  border-color: #f5c2c0;
+  background: #fff4f3;
+  color: #8f231f;
+}
+
 .hero p {
   color: var(--muted);
 }
@@ -149,6 +171,19 @@ textarea {
   font-size: 13px;
 }
 
+.test-status {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.test-status.ok {
+  color: var(--ok);
+}
+
+.test-status.err {
+  color: var(--danger);
+}
+
 .drop-zone {
   margin-top: 10px;
   border: 2px dashed var(--line);
@@ -161,6 +196,63 @@ textarea {
 .drop-zone.dragging {
   border-color: var(--brand);
   background: #fff4ef;
+}
+
+.file-zone-layout {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+}
+
+.file-side {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+}
+
+.imported-files {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.imported-file {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.imported-file-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-del-btn {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid #d8b8b6;
+  background: #fff4f3;
+  color: #8f231f;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.imported-file.active {
+  border-color: var(--brand);
+  background: #fff0e8;
+}
+
+.file-main {
+  min-width: 0;
 }
 
 .table-wrap {
@@ -200,6 +292,27 @@ th.selected {
   margin-top: 12px;
   display: grid;
   gap: 12px;
+}
+
+.global-progress {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.global-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.global-progress-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .task-card {
@@ -254,10 +367,32 @@ textarea {
   color: var(--danger);
 }
 
+.status.warn {
+  color: var(--warn);
+}
+
 progress {
   margin-top: 8px;
   width: 100%;
-  height: 10px;
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background: #e5eadf;
+  border-radius: 999px;
+}
+
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #3ebf5c, #239445);
+  border-radius: 999px;
+}
+
+progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #3ebf5c, #239445);
+  border-radius: 999px;
 }
 
 @media (max-width: 700px) {
@@ -267,5 +402,9 @@ progress {
 
   .hero h1 {
     font-size: 24px;
+  }
+
+  .file-zone-layout {
+    grid-template-columns: 1fr;
   }
 }

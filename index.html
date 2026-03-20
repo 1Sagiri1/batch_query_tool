@@ -8,6 +8,7 @@
 </head>
 <body>
   <main class="app">
+    <div id="appHealth" class="app-health">前端初始化中...</div>
     <header class="hero">
       <h1>本地批量查询工作台</h1>
       <p>配置、文件导入、SQL 批处理、并行任务与导出都在浏览器本地完成。</p>
@@ -28,13 +29,6 @@
       <div id="profileTabs" class="tabs"></div>
       <form id="profileForm" class="grid-form">
         <label>配置名<input id="profileName" type="text" required></label>
-        <label>模式
-          <select id="profileMode">
-            <option value="duckdb-local">DuckDB 本地模式</option>
-          </select>
-        </label>
-        <label>Dialect<input id="profileDialect" type="text" placeholder="mysql"></label>
-        <label>Driver<input id="profileDriver" type="text" placeholder="pymysql"></label>
         <label>Host<input id="profileHost" type="text" placeholder="127.0.0.1"></label>
         <label>Port<input id="profilePort" type="text" placeholder="3306"></label>
         <label>Username<input id="profileUser" type="text"></label>
@@ -43,9 +37,11 @@
       </form>
       <div class="inline-actions">
         <button id="saveProfileBtn" type="button">保存当前配置</button>
+        <button id="testProfileBtn" type="button">连接测试</button>
+        <span id="testProfileStatus" class="test-status">未测试</span>
         <button id="deleteProfileBtn" type="button" class="danger">删除当前配置</button>
       </div>
-      <p class="tip">说明: 浏览器本地页无法直接连接 MySQL/PostgreSQL，本页默认使用 DuckDB 本地模式执行 SQL；数据库账号字段会随配置一起保存，便于管理与后续扩展。</p>
+      <p class="tip">说明: 需先运行本地 API 服务 (`python src/bridge_server.py`)；DuckDB 仅用于本地文件数据处理，不用于数据库查询。</p>
     </section>
 
     <section class="panel">
@@ -59,22 +55,29 @@
         </div>
       </div>
       <div id="dropZone" class="drop-zone">拖拽 CSV/XLSX 文件到这里</div>
-      <div class="inline-actions">
-        <span id="fileMeta">未导入文件</span>
-      </div>
-      <div class="inline-actions">
-        <span>标题行:</span>
-        <label><input type="radio" name="hasHeader" value="true" checked> 包含标题行</label>
-        <label><input type="radio" name="hasHeader" value="false"> 不包含标题行(第一行也参与查询)</label>
-      </div>
-      <div class="inline-actions">
-        <label>预览 Sheet:
-          <select id="sheetSelect"></select>
-        </label>
-        <span id="selectedColumnMeta">未选择列</span>
-      </div>
-      <div class="table-wrap">
-        <table id="previewTable"></table>
+      <div class="file-zone-layout">
+        <aside class="file-side">
+          <div class="inline-actions">
+            <span id="fileMeta">未导入文件</span>
+          </div>
+          <div id="importedFilesList" class="imported-files"></div>
+        </aside>
+        <div class="file-main">
+          <div class="inline-actions">
+            <span>标题行:</span>
+            <label><input type="radio" name="hasHeader" value="true" checked> 包含标题行</label>
+            <label><input type="radio" name="hasHeader" value="false"> 不包含标题行(第一行也参与查询)</label>
+          </div>
+          <div class="inline-actions">
+            <label>预览 Sheet:
+              <select id="sheetSelect"></select>
+            </label>
+            <span id="selectedColumnMeta">未选择列</span>
+          </div>
+          <div class="table-wrap">
+            <table id="previewTable"></table>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -87,10 +90,44 @@
           <button id="exportAllXlsxBtn" type="button">导出全部结果(XLSX多Sheet)</button>
         </div>
       </div>
+      <div class="global-progress">
+        <div class="global-progress-row">
+          <strong>整体进度</strong>
+          <span id="globalProgressText">0%</span>
+        </div>
+        <progress id="globalProgressBar" max="100" value="0"></progress>
+        <div id="globalProgressMeta" class="global-progress-meta">等待任务启动</div>
+      </div>
       <div id="taskList" class="task-list"></div>
     </section>
   </main>
 
-  <script type="module" src="./app.js"></script>
+  <script>
+    window.__APP_READY = false;
+    window.__APP_BOOT_ERROR = "";
+    window.addEventListener("error", function (e) {
+      window.__APP_BOOT_ERROR = (e && e.message) ? e.message : "Unknown script error";
+      var el = document.getElementById("appHealth");
+      if (el) {
+        el.textContent = "前端报错: " + window.__APP_BOOT_ERROR;
+        el.className = "app-health err";
+      }
+    });
+    setTimeout(function () {
+      var el = document.getElementById("appHealth");
+      if (!el) return;
+      if (window.__APP_READY) {
+        el.textContent = "前端已初始化";
+        el.className = "app-health ok";
+      } else if (window.__APP_BOOT_ERROR) {
+        el.textContent = "前端报错: " + window.__APP_BOOT_ERROR;
+        el.className = "app-health err";
+      } else {
+        el.textContent = "前端未初始化: 请检查 app.js 是否被浏览器拦截或加载失败";
+        el.className = "app-health err";
+      }
+    }, 1500);
+  </script>
+  <script src="./app.js"></script>
 </body>
 </html>

@@ -1,7 +1,10 @@
 # 本地浏览器版批量查询工具
 
 ## 说明
-项目已升级为纯前端本地页面，入口是根目录的 `index.html`。  
+项目已升级为“前端页面 + 本地数据库桥接 API”模式:
+- 页面入口: `index.html`
+- 本地桥接服务: `python src/bridge_server.py`
+
 主要能力:
 
 1. 多数据库/账号配置管理:
@@ -26,20 +29,23 @@
 - 所有任务结果一键导出为 XLSX 多 Sheet。
 
 ## 使用方式
-1. 直接双击打开 `index.html`（建议现代 Chrome/Edge）。
-2. 在“数据库/账号配置”中新增或导入配置并保存。
-3. 拖拽导入数据文件，勾选标题行选项，点击预览表头选择查询列。
-4. 创建一个或多个任务，填写 SQL，点击运行。
-5. 任务完成后导出 CSV 或 XLSX。
+1. 安装依赖:
+```bash
+pip install -r requirements.txt
+```
+2. 双击 `start_app.bat`。
+3. 会自动启动桥接服务并在“默认浏览器”打开网页。
+4. 查询完成后回到启动窗口按 Enter，即可自动关闭桥接服务。
+5. 其中 `start_app.bat` 是双击入口，`start_app.ps1` 负责进程生命周期控制。
+5. 在“数据库/账号配置”里填写并测试连接。
+6. 拖拽导入数据文件，选择批处理列，创建任务并运行。
+7. 任务完成后导出 CSV 或 XLSX。
 
 ## 配置文件格式示例
 ```json
 [
   {
     "name": "生产库A",
-    "mode": "duckdb-local",
-    "dialect": "mysql",
-    "driver": "pymysql",
     "host": "127.0.0.1",
     "port": "3306",
     "username": "root",
@@ -50,5 +56,7 @@
 ```
 
 ## 兼容性提示
-- 浏览器本地页面默认使用 DuckDB-WASM 执行 SQL。
-- 当前页面不会直接连接 MySQL/PostgreSQL 服务器；配置字段会完整保留，便于后续扩展对接。
+- 文件列值会分批替换到 SQL 的 `{}` / `{{values}}`，SQL 在真实数据库执行。
+- `dialect/driver` 固定默认值为 `mysql+pymysql`，无需页面配置。
+- DuckDB 仅用于浏览器内文件处理（提取去重值），不参与业务 SQL 查询。
+- 若直接双击 `index.html`，无法自动管理本地桥接进程；请使用 `start_app.bat`。
