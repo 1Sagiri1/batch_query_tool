@@ -1,0 +1,271 @@
+:root {
+  --bg: #f4f1e8;
+  --panel: #fffdf7;
+  --ink: #1f2a2e;
+  --muted: #5f6d73;
+  --brand: #b04a2f;
+  --brand-deep: #7f2d1b;
+  --line: #d8d1c5;
+  --ok: #2f7d42;
+  --warn: #a66d00;
+  --danger: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 10%, #f6e8d5 0, transparent 35%),
+    radial-gradient(circle at 85% 20%, #f0d7c5 0, transparent 40%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans SC", "Segoe UI", sans-serif;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.hero p {
+  color: var(--muted);
+}
+
+.panel {
+  margin-top: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.head-actions,
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+button,
+.file-btn {
+  border: 1px solid var(--brand);
+  background: #fff4ef;
+  color: var(--brand-deep);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover,
+.file-btn:hover {
+  background: #ffe8dd;
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fff3f2;
+}
+
+.file-btn input {
+  display: none;
+}
+
+.tabs {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: #fff;
+}
+
+.tab.active {
+  border-color: var(--brand);
+  background: #ffe8dd;
+  color: var(--brand-deep);
+}
+
+.grid-form {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.grid-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  color: var(--ink);
+}
+
+.tip {
+  margin-top: 10px;
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.drop-zone {
+  margin-top: 10px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.drop-zone.dragging {
+  border-color: var(--brand);
+  background: #fff4ef;
+}
+
+.table-wrap {
+  margin-top: 12px;
+  overflow: auto;
+  max-height: 330px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  border: 1px solid #ece6dc;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #fff8f2;
+  cursor: pointer;
+}
+
+th.selected {
+  background: #ffd9c7;
+  color: #722615;
+}
+
+.task-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.task-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.task-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.task-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.task-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.task-grid label.sql {
+  grid-column: 1 / -1;
+}
+
+textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status.ok {
+  color: var(--ok);
+}
+
+.status.err {
+  color: var(--danger);
+}
+
+progress {
+  margin-top: 8px;
+  width: 100%;
+  height: 10px;
+}
+
+@media (max-width: 700px) {
+  .app {
+    padding: 14px;
+  }
+
+  .hero h1 {
+    font-size: 24px;
+  }
+}

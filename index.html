@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地批量查询工作台</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <h1>本地批量查询工作台</h1>
+      <p>配置、文件导入、SQL 批处理、并行任务与导出都在浏览器本地完成。</p>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>1. 数据库/账号配置</h2>
+        <div class="head-actions">
+          <button id="addProfileBtn" type="button">新增配置</button>
+          <button id="exportProfilesBtn" type="button">导出配置</button>
+          <label class="file-btn">
+            导入配置
+            <input id="importProfilesInput" type="file" accept=".json" multiple>
+          </label>
+        </div>
+      </div>
+      <div id="profileTabs" class="tabs"></div>
+      <form id="profileForm" class="grid-form">
+        <label>配置名<input id="profileName" type="text" required></label>
+        <label>模式
+          <select id="profileMode">
+            <option value="duckdb-local">DuckDB 本地模式</option>
+          </select>
+        </label>
+        <label>Dialect<input id="profileDialect" type="text" placeholder="mysql"></label>
+        <label>Driver<input id="profileDriver" type="text" placeholder="pymysql"></label>
+        <label>Host<input id="profileHost" type="text" placeholder="127.0.0.1"></label>
+        <label>Port<input id="profilePort" type="text" placeholder="3306"></label>
+        <label>Username<input id="profileUser" type="text"></label>
+        <label>Password<input id="profilePassword" type="password"></label>
+        <label>Database<input id="profileDatabase" type="text"></label>
+      </form>
+      <div class="inline-actions">
+        <button id="saveProfileBtn" type="button">保存当前配置</button>
+        <button id="deleteProfileBtn" type="button" class="danger">删除当前配置</button>
+      </div>
+      <p class="tip">说明: 浏览器本地页无法直接连接 MySQL/PostgreSQL，本页默认使用 DuckDB 本地模式执行 SQL；数据库账号字段会随配置一起保存，便于管理与后续扩展。</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>2. 文件导入与列选择</h2>
+        <div class="head-actions">
+          <label class="file-btn">
+            选择文件
+            <input id="dataFileInput" type="file" accept=".csv,.xlsx,.xls">
+          </label>
+        </div>
+      </div>
+      <div id="dropZone" class="drop-zone">拖拽 CSV/XLSX 文件到这里</div>
+      <div class="inline-actions">
+        <span id="fileMeta">未导入文件</span>
+      </div>
+      <div class="inline-actions">
+        <span>标题行:</span>
+        <label><input type="radio" name="hasHeader" value="true" checked> 包含标题行</label>
+        <label><input type="radio" name="hasHeader" value="false"> 不包含标题行(第一行也参与查询)</label>
+      </div>
+      <div class="inline-actions">
+        <label>预览 Sheet:
+          <select id="sheetSelect"></select>
+        </label>
+        <span id="selectedColumnMeta">未选择列</span>
+      </div>
+      <div class="table-wrap">
+        <table id="previewTable"></table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>3. 批处理任务</h2>
+        <div class="head-actions">
+          <button id="addTaskBtn" type="button">新增任务</button>
+          <button id="runAllBtn" type="button">并行执行全部任务</button>
+          <button id="exportAllXlsxBtn" type="button">导出全部结果(XLSX多Sheet)</button>
+        </div>
+      </div>
+      <div id="taskList" class="task-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
