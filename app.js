@@ -394,6 +394,9 @@ function renderTasks() {
 
   els.taskList.innerHTML = state.tasks
     .map((task) => {
+      const isExporting = task.status === "exporting";
+      const exportBtnLabel = isExporting ? "导出中..." : "导出";
+      const exportBtnDisabled = isExporting ? "disabled" : "";
       const statusClass =
         task.status === "done"
           ? "ok"
@@ -401,6 +404,8 @@ function renderTasks() {
             ? "err"
             : task.status === "aborted"
               ? "warn"
+              : task.status === "exporting"
+                ? "warn"
               : "";
       return `
         <article class="task-card" data-task-id="${task.id}">
@@ -409,7 +414,7 @@ function renderTasks() {
             <div class="head-actions">
               <button type="button" data-act="run" data-task-id="${task.id}">运行</button>
               <button type="button" data-act="abort" data-task-id="${task.id}">中止</button>
-              <button type="button" data-act="export" data-task-id="${task.id}">导出</button>
+              <button type="button" data-act="export" data-task-id="${task.id}" ${exportBtnDisabled}>${exportBtnLabel}</button>
               <button type="button" class="danger" data-act="delete" data-task-id="${task.id}">删除</button>
             </div>
           </div>
@@ -589,35 +594,61 @@ async function onTaskListClick(event) {
   }
 
   if (act === "export") {
+    if (task.status === "exporting") {
+      showToast("该任务正在导出，请稍候。", "warn");
+      return;
+    }
     await exportSingleTask(task);
   }
 }
 
 async function importDataFile(file) {
-  await ensureXLSX();
   const name = file.name.toLowerCase();
-  if (!(name.endsWith(".csv") || name.endsWith(".xlsx") || name.endsWith(".xls"))) {
+  const isCsv = name.endsWith(".csv");
+  const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+  if (!(isCsv || isExcel)) {
     alert("仅支持 .csv / .xlsx / .xls");
     return;
   }
 
   try {
-    const workbook = await readWorkbook(file);
-    const sheets = workbook.SheetNames.map((sheetName) => {
-      const sheet = workbook.Sheets[sheetName];
-      const ref = sheet["!ref"] || "A1:A1";
-      const range = XLSX.utils.decode_range(ref);
-      const rowCount = range.e.r - range.s.r + 1;
-      const csvText = XLSX.utils.sheet_to_csv(sheet, { FS: ",", RS: "\n" });
-      const previewRows = getPreviewRowsFromCsv(csvText, 11);
-      return {
-        name: sheetName,
-        viewName: normalizeViewName(sheetName),
-        rowCount,
-        csvText,
-        previewRows
-      };
-    });
+    let sheets = [];
+    if (isCsv) {
+      const baseName = file.name.replace(/\.[^./\\]+$/, "");
+      const displayName = baseName || file.name || "Sheet1";
+      const viewName = normalizeViewName(displayName);
+      const fileToken = generateId().replace(/-/g, "");
+      const virtualFileName = `${viewName}_${fileToken}.csv`;
+      const csvBytes = new Uint8Array(await file.arrayBuffer());
+      const analyzed = await analyzeCsvWithDuckDB(virtualFileName, csvBytes.slice(), 11);
+      sheets = [
+        {
+          name: "Sheet1",
+          viewName,
+          rowCount: analyzed.rowCount,
+          previewRows: analyzed.previewRows,
+          csvBytes
+        }
+      ];
+    } else {
+      await ensureXLSX();
+      const workbook = await readWorkbook(file);
+      sheets = workbook.SheetNames.map((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const ref = sheet["!ref"] || "A1:A1";
+        const range = XLSX.utils.decode_range(ref);
+        const rowCount = range.e.r - range.s.r + 1;
+        const csvText = XLSX.utils.sheet_to_csv(sheet, { FS: ",", RS: "\n" });
+        const previewRows = getPreviewRowsFromCsv(csvText, 11);
+        return {
+          name: sheetName,
+          viewName: normalizeViewName(sheetName),
+          rowCount,
+          csvText,
+          previewRows
+        };
+      });
+    }
 
     const totalRows = sheets.reduce((sum, sheet) => sum + sheet.rowCount, 0);
     const fileContext = {
@@ -640,26 +671,112 @@ async function importDataFile(file) {
     renderSheetPreview();
   } catch (error) {
     console.error(error);
-    alert(`文件读取失败: ${error.message}`);
+    alert(`文件读取失败: ${safeErrorMessage(error, "未知错误")}`);
   }
 }
 
 async function readWorkbook(file) {
-  await ensureXLSX();
-  const lower = file.name.toLowerCase();
-  if (lower.endsWith(".csv")) {
-    const text = await file.text();
-    return XLSX.read(text, { type: "string" });
-  }
   const buffer = await file.arrayBuffer();
   return XLSX.read(buffer, { type: "array" });
 }
 
 function getPreviewRowsFromCsv(csvText, rowLimit) {
-  const wb = XLSX.read(csvText, { type: "string" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
-  return rows.slice(0, rowLimit);
+  return parseCsvPreviewAndCount(csvText, rowLimit).previewRows;
+}
+
+async function analyzeCsvWithDuckDB(fileName, csvBytes, rowLimit = 11) {
+  const db = await createDuckDBInstance();
+  const conn = await db.connect();
+  try {
+    await registerCsvInput(db, fileName, { csvBytes });
+    const escapedFile = sqlQuote(fileName);
+    const safeLimit = Math.max(1, Number(rowLimit) || 11);
+    const previewTable = await conn.query(
+      `SELECT * FROM read_csv_auto('${escapedFile}', header=false, all_varchar=true) LIMIT ${safeLimit}`
+    );
+    const countTable = await conn.query(
+      `SELECT COUNT(*) AS cnt FROM read_csv_auto('${escapedFile}', header=false, all_varchar=true)`
+    );
+    const previewRows = arrowTableToRows(previewTable);
+    const countRows = arrowTableToObjects(countTable);
+    const rowCount = Number(countRows[0]?.cnt ?? 0) || 0;
+    return { previewRows, rowCount };
+  } finally {
+    try {
+      await conn.close();
+    } catch (_) {}
+    try {
+      await db.terminate();
+    } catch (_) {}
+  }
+}
+
+function parseCsvPreviewAndCount(csvText, rowLimit = 11) {
+  const previewRows = [];
+  let rowCount = 0;
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  function finishField() {
+    row.push(field);
+    field = "";
+  }
+
+  function finishRow() {
+    finishField();
+    rowCount += 1;
+    if (previewRows.length < rowLimit) {
+      previewRows.push(row);
+    }
+    row = [];
+  }
+
+  for (let i = 0; i < csvText.length; i += 1) {
+    const ch = csvText[i];
+    if (ch === '"') {
+      if (inQuotes && csvText[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && ch === ",") {
+      finishField();
+      continue;
+    }
+
+    if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      if (ch === "\r" && csvText[i + 1] === "\n") {
+        i += 1;
+      }
+      finishRow();
+      continue;
+    }
+
+    field += ch;
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    finishRow();
+  }
+
+  return { previewRows, rowCount };
+}
+
+function safeErrorMessage(error, fallback = "未知错误") {
+  try {
+    const msg = error?.message;
+    if (typeof msg === "string" && msg.trim()) return msg.trim();
+  } catch (_) {}
+  try {
+    const raw = String(error ?? "").trim();
+    if (raw && raw !== "[object Object]") return raw;
+  } catch (_) {}
+  return fallback;
 }
 
 function getCurrentSheet() {
@@ -973,7 +1090,7 @@ async function extractDistinctValues(fileCtx, colIndex, hasHeader, execution) {
       throw new TaskAbortError();
     }
     const fileName = `${sheet.viewName}.csv`;
-    await db.registerFileText(fileName, sheet.csvText);
+    await registerCsvInput(db, fileName, sheet);
     const headerFlag = hasHeader ? "true" : "false";
     const escapedFile = sqlQuote(fileName);
     const schemaTable = await conn.query(
@@ -1018,46 +1135,148 @@ async function exportSingleTask(task) {
     alert("该任务暂无结果可导出。");
     return;
   }
+  if (task.status === "exporting") return;
+  if (task.status === "running") {
+    alert("任务运行中，暂不支持导出。请等待运行完成后再导出。");
+    return;
+  }
+
+  const exportRows = normalizeExportRows(task.resultRows);
+  const totalRows = exportRows.length;
+  if (totalRows === 0) {
+    alert("该任务结果格式异常，无法导出。");
+    return;
+  }
+  const previousStatus = task.status;
+  const previousMessage = task.message;
+  const previousProgress = Number(task.progress) || 0;
+  task.status = "exporting";
+  task.progress = 0;
+  task.message = `导出中: 0/${totalRows} 行`;
+  renderTasks();
+
+  const onProgress = (percent, message) => {
+    task.progress = Math.max(0, Math.min(100, Number(percent) || 0));
+    task.message = message || `导出中: ${Math.round(task.progress)}%`;
+    renderTasks();
+  };
+
   const baseName = `${safeFileName(task.name || "task")}_${formatNow()}`;
-  if (task.exportType === "xlsx") {
-    await exportRowsAsXlsx(task.resultRows, baseName);
-  } else {
-    await exportRowsAsCsv(task.resultRows, baseName, task.csvEncoding || "auto");
+  try {
+    if (task.exportType === "xlsx") {
+      try {
+        await exportRowsAsXlsx(exportRows, baseName, onProgress);
+      } catch (xlsxError) {
+        const xlsxMsg = safeErrorMessage(xlsxError, "");
+        if (/Invalid array length/i.test(xlsxMsg)) {
+          showToast("XLSX 导出失败，自动降级为 CSV 导出。", "warn", 3200);
+          await exportRowsAsCsv(exportRows, baseName, task.csvEncoding || "auto", onProgress);
+        } else {
+          throw xlsxError;
+        }
+      }
+    } else {
+      await exportRowsAsCsv(exportRows, baseName, task.csvEncoding || "auto", onProgress);
+    }
+    task.status = "done";
+    task.progress = 100;
+    task.message = `导出完成: ${totalRows} 行`;
+    showToast(task.message, "ok");
+  } catch (error) {
+    console.error(error);
+    const errMsg = safeErrorMessage(error, "未知错误");
+    if (errMsg.includes("已取消导出")) {
+      task.status = previousStatus || "done";
+      task.progress = previousProgress;
+      task.message = previousMessage || "已取消导出";
+      showToast("已取消导出", "warn");
+    } else {
+      task.status = "error";
+      task.message = `导出失败: ${errMsg}`;
+      alert(task.message);
+      showToast(task.message, "err");
+    }
+  } finally {
+    if (task.status === "exporting") {
+      task.status = previousStatus || "done";
+      task.message = previousMessage || task.message;
+      task.progress = previousProgress;
+    }
+    renderTasks();
+    saveTasks();
   }
 }
 
-async function exportRowsAsCsv(rows, baseName, encodingMode = "auto") {
-  await ensureXLSX();
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const rawCsv = XLSX.utils.sheet_to_csv(worksheet);
+async function exportRowsAsCsv(rows, baseName, encodingMode = "auto", onProgress = () => {}) {
+  const total = rows.length;
+  const headers = total > 0 ? Object.keys(rows[0]) : [];
+  const chunkSize = 3000;
+  const csvChunks = [];
+  let buffer = "";
+
+  onProgress(3, "导出中: 准备 CSV 列头");
+  buffer += `${headers.map(csvEscapeCell).join(",")}\r\n`;
+  await yieldToUI();
+
+  for (let i = 0; i < total; i += 1) {
+    const row = rows[i] || {};
+    const line = headers.map((key) => csvEscapeCell(row[key])).join(",");
+    buffer += `${line}\r\n`;
+
+    if ((i + 1) % chunkSize === 0 || i === total - 1) {
+      csvChunks.push(buffer);
+      buffer = "";
+      const ratio = total <= 0 ? 1 : (i + 1) / total;
+      const percent = Math.min(90, 5 + Math.round(ratio * 85));
+      onProgress(percent, `导出中: CSV ${i + 1}/${total} 行`);
+      await yieldToUI();
+    }
+  }
+
+  const rawCsv = csvChunks.join("");
   const resolvedEncoding = resolveCsvEncoding(encodingMode);
+  onProgress(93, `导出中: 写入 CSV (${resolvedEncoding.toUpperCase()})`);
   const csv = resolvedEncoding === "utf8bom" ? `\uFEFF${rawCsv}` : rawCsv;
-  await saveFileWithPickerOrDownload(
+  const saved = await saveFileWithPickerOrDownload(
     `${safeFileName(baseName)}.csv`,
     "text/csv;charset=utf-8",
     csv
   );
+  if (!saved) {
+    throw new Error("已取消导出");
+  }
+  onProgress(100, `导出完成: CSV ${total} 行`);
 }
 
-async function exportRowsAsXlsx(rows, baseName) {
+async function exportRowsAsXlsx(rows, baseName, onProgress = () => {}) {
   await ensureXLSX();
   const wb = XLSX.utils.book_new();
   const total = rows.length;
   const sheetCount = Math.ceil(total / EXCEL_MAX_ROWS_PER_SHEET);
+  onProgress(3, `导出中: 准备 XLSX，共 ${sheetCount} 个 Sheet`);
   for (let i = 0; i < sheetCount; i += 1) {
     const start = i * EXCEL_MAX_ROWS_PER_SHEET;
     const end = Math.min(start + EXCEL_MAX_ROWS_PER_SHEET, total);
     const chunk = rows.slice(start, end);
+    const sheetProgress = 5 + Math.round(((i + 1) / Math.max(1, sheetCount)) * 70);
+    onProgress(sheetProgress, `导出中: 生成 Sheet ${i + 1}/${sheetCount} (${end - start} 行)`);
     const ws = XLSX.utils.json_to_sheet(chunk);
     XLSX.utils.book_append_sheet(wb, ws, `${truncateSheetName(baseName)}_${i + 1}`);
+    await yieldToUI();
   }
+  onProgress(80, "导出中: 生成 XLSX 文件");
   const xlsxArray = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  await saveFileWithPickerOrDownload(
+  onProgress(93, "导出中: 写入磁盘");
+  const saved = await saveFileWithPickerOrDownload(
     `${safeFileName(baseName)}.xlsx`,
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     xlsxArray,
     false
   );
+  if (!saved) {
+    throw new Error("已取消导出");
+  }
+  onProgress(100, `导出完成: XLSX ${total} 行`);
 }
 
 async function exportAllTasksAsXlsx() {
@@ -1109,6 +1328,26 @@ function arrowTableToObjects(table) {
     if (row && typeof row === "object") return { ...row };
     return { value: row };
   });
+}
+
+function arrowTableToRows(table) {
+  const fields = Array.isArray(table?.schema?.fields) ? table.schema.fields : [];
+  const objects = arrowTableToObjects(table);
+  return objects.map((obj) => fields.map((field) => String(obj?.[field.name] ?? "")));
+}
+
+async function registerCsvInput(db, fileName, sheet) {
+  if (sheet?.csvBytes instanceof Uint8Array) {
+    const safeBytes = sheet.csvBytes.slice();
+    if (typeof db.registerFileBuffer === "function") {
+      await db.registerFileBuffer(fileName, safeBytes);
+      return;
+    }
+    const decoder = new TextDecoder("utf-8");
+    await db.registerFileText(fileName, decoder.decode(safeBytes));
+    return;
+  }
+  await db.registerFileText(fileName, String(sheet?.csvText ?? ""));
 }
 
 function normalizeViewName(name) {
@@ -1195,6 +1434,19 @@ function sqlQuote(value) {
   return String(value).replaceAll("'", "''");
 }
 
+function csvEscapeCell(value) {
+  const text = String(value ?? "");
+  const escaped = text.replaceAll('"', '""');
+  if (/[",\r\n]/.test(escaped)) {
+    return `"${escaped}"`;
+  }
+  return escaped;
+}
+
+async function yieldToUI() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.floor((ms || 0) / 1000));
   const h = Math.floor(totalSeconds / 3600);
@@ -1244,12 +1496,13 @@ async function saveFileWithPickerOrDownload(fileName, mime, content, usePicker =
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return;
+      return true;
     } catch (error) {
-      if (error?.name === "AbortError") return;
+      if (error?.name === "AbortError") return false;
     }
   }
   downloadBlobFile(fileName, blob);
+  return true;
 }
 
 function downloadBlobFile(name, blob) {
@@ -1263,6 +1516,42 @@ function downloadBlobFile(name, blob) {
 
 function safeFileName(name) {
   return String(name || "result").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80);
+}
+
+function normalizeExportRows(rawRows) {
+  if (!Array.isArray(rawRows)) {
+    throw new Error("结果数据不是数组");
+  }
+  return rawRows.map((row) => {
+    if (row && typeof row === "object" && !Array.isArray(row)) {
+      return row;
+    }
+    return { value: String(row ?? "") };
+  });
+}
+
+function showToast(message, type = "info", duration = 2600) {
+  const text = String(message || "").trim();
+  if (!text) return;
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = text;
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("show");
+  });
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 220);
+  }, Math.max(800, Number(duration) || 2600));
 }
 
 function truncateSheetName(name) {

@@ -108,6 +108,11 @@ button:hover,
   background: #ffe8dd;
 }
 
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 button.danger {
   border-color: var(--danger);
   color: var(--danger);
@@ -393,6 +398,52 @@ progress::-webkit-progress-value {
 progress::-moz-progress-bar {
   background: linear-gradient(90deg, #3ebf5c, #239445);
   border-radius: 999px;
+}
+
+.toast-container {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 9999;
+  display: grid;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 24px));
+}
+
+.toast {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.ok {
+  border-color: #a6dbb2;
+  background: #edf9f0;
+  color: #1f6a31;
+}
+
+.toast.warn {
+  border-color: #f1d69d;
+  background: #fff8ea;
+  color: #8a5a00;
+}
+
+.toast.err {
+  border-color: #f5c2c0;
+  background: #fff4f3;
+  color: #8f231f;
 }
 
 @media (max-width: 700px) {

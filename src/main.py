@@ -1,3 +1,13 @@
+'''
+Filename: c:\Users\13570\Desktop\python批处理\batch_query\src\main.py
+Path: c:\Users\13570\Desktop\python批处理\batch_query\src
+Created Date: Thursday, March 19th 2026, 10:16:25 am
+Author: lSagiril
+
+Copyright (c) 2026 Your Company
+'''
+# TODO: 增加批次写入
+
 import os
 import sys
 import pandas as pd
