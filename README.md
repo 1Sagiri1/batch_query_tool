@@ -5,11 +5,11 @@
 
 - 前端页面：`index.html`
 - 后端桥接服务：`src/bridge_server.py`
-- 推荐启动入口：`start_app.bat`（自动启动服务并打开网页）
+- 推荐启动入口：Windows 用 `start_app.bat`，macOS(zsh) 用 `start_app.zsh`（自动启动服务并打开网页）
 
 ## 当前功能
 1. 配置管理
-- 支持多个数据库配置（名称、host、port、username、password、database）
+- 支持多个数据库配置（名称、数据库类型、host、port、username、password、database）
 - 支持配置导入/导出（JSON）
 - 配置保存在浏览器 `localStorage`
 - 可在页面内执行“连接测试（SELECT 1）”
@@ -55,8 +55,13 @@ pip install -r requirements.txt
 ```
 
 2. 启动应用（推荐）
-- 双击 `start_app.bat`
-- 脚本会：
+- Windows:
+  - 双击 `start_app.bat`
+- macOS(zsh):
+  - 首次执行前赋予权限：`chmod +x start_app.zsh`
+  - 运行：`./start_app.zsh`
+  - 或双击 `start_app.command`（如首次被拦截，请在“系统设置 -> 隐私与安全性”中允许后重试）
+- 启动脚本会：
   - 启动桥接服务
   - 用浏览器打开页面
   - 等你回到启动窗口按 `Enter` 后关闭服务
@@ -68,7 +73,7 @@ pip install -r requirements.txt
 - 运行并导出结果
 
 ## 可选手动启动
-如果不使用 `start_app.bat`，也可以手动：
+如果不使用启动脚本，也可以手动：
 
 1. 启动服务
 ```bash
@@ -81,6 +86,7 @@ python src/bridge_server.py
 [
   {
     "name": "生产库A",
+    "dbType": "mysql",
     "host": "127.0.0.1",
     "port": "3306",
     "username": "root",
@@ -93,4 +99,4 @@ python src/bridge_server.py
 ## 技术说明
 - 业务 SQL 在真实数据库执行（通过本地桥接服务）
 - DuckDB 仅用于浏览器端文件处理（提取去重值/预览辅助）
-- `dialect/driver` 已固定默认 `mysql+pymysql`，页面无需配置
+- 数据库类型支持 `mysql`（`sqlalchemy + pymysql`）与 `clickhouse`（`clickhouse_connect`）

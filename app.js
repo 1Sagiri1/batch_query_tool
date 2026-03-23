@@ -26,6 +26,7 @@ const els = {
   exportProfilesBtn: document.getElementById("exportProfilesBtn"),
   importProfilesInput: document.getElementById("importProfilesInput"),
   profileName: document.getElementById("profileName"),
+  profileDbType: document.getElementById("profileDbType"),
   profileHost: document.getElementById("profileHost"),
   profilePort: document.getElementById("profilePort"),
   profileUser: document.getElementById("profileUser"),
@@ -85,6 +86,17 @@ function bindEvents() {
   els.saveProfileBtn.addEventListener("click", saveActiveProfileFromForm);
   els.testProfileBtn.addEventListener("click", testActiveProfileConnection);
   els.deleteProfileBtn.addEventListener("click", deleteActiveProfile);
+  els.profileDbType.addEventListener("change", () => {
+    const profile = getActiveProfile();
+    if (!profile) return;
+    profile.dbType = normalizeDbType(els.profileDbType.value);
+    if (!els.profilePort.value.trim()) {
+      els.profilePort.value = getDefaultPort(profile.dbType);
+    }
+    els.profilePort.placeholder = getDefaultPort(profile.dbType);
+    saveProfiles();
+    renderTasks();
+  });
 
   els.profileTabs.addEventListener("click", (event) => {
     const tab = event.target.closest(".tab");
@@ -191,9 +203,10 @@ function saveProfiles() {
 }
 
 function createProfile(overrides = {}) {
-  return {
+  const profile = {
     id: generateId(),
     name: "默认配置",
+    dbType: "mysql",
     host: "",
     port: "3306",
     username: "",
@@ -201,6 +214,9 @@ function createProfile(overrides = {}) {
     database: "",
     ...overrides
   };
+  profile.dbType = normalizeDbType(profile.dbType);
+  profile.port = String(profile.port || getDefaultPort(profile.dbType));
+  return profile;
 }
 
 function getActiveProfile() {
@@ -219,8 +235,10 @@ function renderProfiles() {
   if (!profile) return;
 
   els.profileName.value = profile.name || "";
+  els.profileDbType.value = normalizeDbType(profile.dbType);
   els.profileHost.value = profile.host || "";
   els.profilePort.value = profile.port || "";
+  els.profilePort.placeholder = getDefaultPort(els.profileDbType.value);
   els.profileUser.value = profile.username || "";
   els.profilePassword.value = profile.password || "";
   els.profileDatabase.value = profile.database || "";
@@ -231,6 +249,7 @@ function saveActiveProfileFromForm() {
   const profile = getActiveProfile();
   if (!profile) return;
   profile.name = els.profileName.value.trim() || "未命名配置";
+  profile.dbType = normalizeDbType(els.profileDbType.value);
   profile.host = els.profileHost.value.trim();
   profile.port = els.profilePort.value.trim();
   profile.username = els.profileUser.value.trim();
@@ -331,14 +350,28 @@ async function onImportProfiles(event) {
 }
 
 function normalizeProfile(raw) {
+  const dbType = normalizeDbType(
+    raw?.dbType || raw?.db_type || raw?.type || raw?.dialect || raw?.DIALECT
+  );
   return createProfile({
     name: raw?.name || raw?.database || "导入配置",
+    dbType,
     host: raw?.host || raw?.HOST || "",
-    port: String(raw?.port || raw?.PORT || "3306"),
+    port: String(raw?.port || raw?.PORT || getDefaultPort(dbType)),
     username: raw?.username || raw?.USERNAME || "",
     password: raw?.password || raw?.PASSWORD || "",
     database: raw?.database || raw?.DATABASE || ""
   });
+}
+
+function normalizeDbType(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "clickhouse" || text === "ch" || text.includes("clickhouse")) return "clickhouse";
+  return "mysql";
+}
+
+function getDefaultPort(dbType) {
+  return normalizeDbType(dbType) === "clickhouse" ? "8123" : "3306";
 }
 
 function loadTasks() {

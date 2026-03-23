@@ -29,6 +29,12 @@
       <div id="profileTabs" class="tabs"></div>
       <form id="profileForm" class="grid-form">
         <label>配置名<input id="profileName" type="text" required></label>
+        <label>数据库类型
+          <select id="profileDbType">
+            <option value="mysql">MySQL</option>
+            <option value="clickhouse">ClickHouse</option>
+          </select>
+        </label>
         <label>Host<input id="profileHost" type="text" placeholder="127.0.0.1"></label>
         <label>Port<input id="profilePort" type="text" placeholder="3306"></label>
         <label>Username<input id="profileUser" type="text"></label>
@@ -41,7 +47,6 @@
         <span id="testProfileStatus" class="test-status">未测试</span>
         <button id="deleteProfileBtn" type="button" class="danger">删除当前配置</button>
       </div>
-      <p class="tip">说明: 需先运行本地 API 服务 (`python src/bridge_server.py`)；DuckDB 仅用于本地文件数据处理，不用于数据库查询。</p>
     </section>
 
     <section class="panel">
@@ -106,7 +111,12 @@
     window.__APP_READY = false;
     window.__APP_BOOT_ERROR = "";
     window.addEventListener("error", function (e) {
-      window.__APP_BOOT_ERROR = (e && e.message) ? e.message : "Unknown script error";
+      // 仅在初始化阶段显示致命错误，避免运行后噪声错误污染顶部状态
+      if (window.__APP_READY) return;
+      var msg = (e && e.message) ? String(e.message) : "Unknown script error";
+      var isOpaqueScriptError = msg === "Script error." && !(e && e.filename);
+      if (isOpaqueScriptError) return;
+      window.__APP_BOOT_ERROR = msg;
       var el = document.getElementById("appHealth");
       if (el) {
         el.textContent = "前端报错: " + window.__APP_BOOT_ERROR;

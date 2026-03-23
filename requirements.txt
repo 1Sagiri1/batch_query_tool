@@ -5,3 +5,4 @@ openpyxl
 pyodbc
 pymysql
 pywebview
+clickhouse-connect

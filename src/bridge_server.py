@@ -5,11 +5,17 @@ from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
 
+try:
+    import clickhouse_connect
+except Exception:  # pragma: no cover - optional dependency at runtime
+    clickhouse_connect = None
+
 
 HOST = "127.0.0.1"
 PORT = 8765
 DEFAULT_DIALECT = "mysql"
 DEFAULT_DRIVER = "pymysql"
+DEFAULT_DB_TYPE = "mysql"
 
 
 def json_response(handler, status_code, payload):
@@ -37,6 +43,48 @@ def build_conn_url(profile):
     return f"{dialect}+{driver}://{username}:{password}@{host}/{database}"
 
 
+def normalize_db_type(profile):
+    value = (
+        profile.get("dbType")
+        or profile.get("db_type")
+        or profile.get("type")
+        or profile.get("dialect")
+        or profile.get("DIALECT")
+        or DEFAULT_DB_TYPE
+    )
+    text_value = str(value).strip().lower()
+    if text_value in {"clickhouse", "ch"} or "clickhouse" in text_value:
+        return "clickhouse"
+    return "mysql"
+
+
+def create_clickhouse_client(profile):
+    if clickhouse_connect is None:
+        raise RuntimeError("未安装 clickhouse-connect，请先执行 pip install clickhouse-connect")
+
+    host = str(profile.get("host") or profile.get("HOST") or "127.0.0.1")
+    port_raw = profile.get("port") or profile.get("PORT") or "8123"
+    username = str(profile.get("username") or profile.get("USERNAME") or "default")
+    password = str(profile.get("password") or profile.get("PASSWORD") or "")
+    database = str(profile.get("database") or profile.get("DATABASE") or "default")
+    secure_raw = str(profile.get("secure") or profile.get("SECURE") or "").strip().lower()
+    secure = secure_raw in {"1", "true", "yes", "on"}
+
+    try:
+        port = int(str(port_raw).strip()) if str(port_raw).strip() else 8123
+    except ValueError as exc:
+        raise ValueError(f"ClickHouse 端口非法: {port_raw}") from exc
+
+    return clickhouse_connect.get_client(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        database=database,
+        secure=secure,
+    )
+
+
 def escape_sql_value(value):
     return str(value).replace("'", "''")
 
@@ -51,6 +99,16 @@ def format_sql(sql_template, values):
 
 
 def test_connection(profile):
+    db_type = normalize_db_type(profile)
+    if db_type == "clickhouse":
+        client = create_clickhouse_client(profile)
+        try:
+            result = client.query("SELECT 1 AS ok")
+            rows = result.result_rows or []
+            return bool(rows and int(rows[0][0]) == 1)
+        finally:
+            client.close()
+
     engine = create_engine(build_conn_url(profile), pool_pre_ping=True)
     try:
         with engine.connect() as conn:
@@ -63,6 +121,18 @@ def test_connection(profile):
 
 def execute_batch(profile, sql_template, values):
     query = format_sql(sql_template, values)
+    db_type = normalize_db_type(profile)
+
+    if db_type == "clickhouse":
+        client = create_clickhouse_client(profile)
+        try:
+            result = client.query(query)
+            keys = list(result.column_names or [])
+            rows = result.result_rows or []
+            return [dict(zip(keys, row)) for row in rows], keys
+        finally:
+            client.close()
+
     engine = create_engine(build_conn_url(profile), pool_pre_ping=True)
     try:
         with engine.connect() as conn:
