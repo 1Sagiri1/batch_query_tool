@@ -275,10 +275,23 @@ async function testActiveProfileConnection() {
   } catch (error) {
     console.error(error);
     const msg = String(error?.message || "连接失败");
-    const withHint = msg.includes("python src/bridge_server.py")
-      ? msg
-      : `${msg}，请先启动 python src/bridge_server.py`;
-    setProfileTestStatus(`连接失败: ${withHint}`, "err");
+    const lowerMsg = msg.toLowerCase();
+    const isBridgeUnavailable =
+      msg.includes("无法连接本地桥接服务") ||
+      msg.includes("python src/bridge_server.py") ||
+      lowerMsg.includes("failed to fetch") ||
+      lowerMsg.includes("networkerror");
+    const isAccessDenied = lowerMsg.includes("access denied") || msg.includes("1045");
+
+    let finalMsg = msg;
+    if (isBridgeUnavailable) {
+      finalMsg = msg.includes("python src/bridge_server.py")
+        ? msg
+        : `${msg}，请先启动 python src/bridge_server.py`;
+    } else if (isAccessDenied) {
+      finalMsg = `${msg}。请检查用户名/密码，以及数据库侧是否放通你的来源 IP。`;
+    }
+    setProfileTestStatus(`连接失败: ${finalMsg}`, "err");
   }
 }
 
